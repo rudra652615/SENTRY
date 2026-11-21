@@ -179,6 +179,8 @@ app.use("/api/relocation-priority", relocationPriorityRoutes);
 app.use("/api/mesh", meshRoutes);
 app.use("/api/live", liveRoutes);
 app.use("/api/push", pushRoutes);
+// The SENETRY Test Console sets a demo scene here and citizen phones play it. Off unless DEMO_TEST_KEY is set on the server.
+app.use("/api/demo", require("./routes/demo_routes"));
 pushService.attach(require("./models/notification"));
 liveHub.attach(require("./models/notification"), "notification");
 liveHub.attach(require("./models/mesh_message"), "citizen-report");
