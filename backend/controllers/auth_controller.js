@@ -637,6 +637,8 @@ const verifyOtp = async (req, res) => {
     }
 };
 module.exports = {
+    claimLoginSession,
+    accountStatusMessage,
     signup,
     login,
     oauthLogin,

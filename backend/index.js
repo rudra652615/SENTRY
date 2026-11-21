@@ -166,6 +166,8 @@ app.use(
     "/api/resources",
     resourceRoutes
 );
+// Android reads this to confirm that this address and the phone app belong together (needed for passkeys).
+app.get("/.well-known/assetlinks.json", require("./controllers/passkey_controller").assetLinks);
 app.use("/api/habitations", habitationRoutes);
 app.use("/api/relocation-sites", relocationSiteRoutes);
 app.use("/api/red-zones", redZoneRoutes);
