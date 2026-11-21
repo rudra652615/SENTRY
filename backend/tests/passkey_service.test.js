@@ -56,7 +56,7 @@ test("the address list for Android lists only real fingerprints", () => {
   assert.deepEqual(passkeys.assetLinks({ ANDROID_CERT_SHA256: "junk" }), []);
   const links = passkeys.assetLinks({ ANDROID_CERT_SHA256: `${CERT.toLowerCase()}, junk`, ANDROID_PACKAGE: "in.example.app" });
   assert.equal(links.length, 1);
-  assert.deepEqual(links[0].relation, ["delegate_permission/common.get_login_creds"]);
+  assert.deepEqual(links[0].relation, ["delegate_permission/common.get_login_creds", "delegate_permission/common.handle_all_urls"]);
   assert.equal(links[0].target.package_name, "in.example.app");
   assert.deepEqual(links[0].target.sha256_cert_fingerprints, [CERT]);
 });

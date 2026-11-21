@@ -44,12 +44,13 @@ const allowedOrigins = (rpID, env = process.env) => [
     ...(rpID ? [`https://${rpID}`] : []),
 ];
 
-// What Android reads to trust the link between this address and the app.
+// What Android reads to trust the link between this address and the app. Google Play services only accepts a passkey for the app when both
+// relations are listed (get_login_creds alone was refused with "RP ID cannot be validated" on a real phone, although Google's own check said linked).
 const assetLinks = (env = process.env) => {
     const fingerprints = certFingerprints(env);
     if (!fingerprints.length) return [];
     return [{
-        relation: ["delegate_permission/common.get_login_creds"],
+        relation: ["delegate_permission/common.get_login_creds", "delegate_permission/common.handle_all_urls"],
         target: { namespace: "android_app", package_name: env.ANDROID_PACKAGE || DEFAULT_PACKAGE, sha256_cert_fingerprints: fingerprints },
     }];
 };
