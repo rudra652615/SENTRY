@@ -13,6 +13,9 @@ const meshMessageSchema = new mongoose.Schema(
     exp: { type: Date, required: true },
     body: { type: mongoose.Schema.Types.Mixed, required: true },
     receivedAt: { type: Date, default: Date.now },
+    // For an SOS: set when staff mark it dealt with.
+    handledAt: { type: Date, default: null },
+    handledBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   },
   { timestamps: false }
 );

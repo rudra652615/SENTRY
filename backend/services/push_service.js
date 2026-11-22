@@ -71,8 +71,15 @@ async function announceUpdate({ messaging = loadMessaging(), model = PushToken, 
   return { sent: true, versionCode: offer.versionCode };
 }
 
+// One data-only push to every registered phone (strings only; carries nothing private). False when push is not set up.
+async function broadcast(data, options = {}) {
+  const send = options.messaging || loadMessaging();
+  if (!send) return false;
+  try { await sendToAll(send, { model: options.model, data }); return true; } catch (error) { console.warn("[push] broadcast failed:", error.message); return false; }
+}
+
 function attach(notificationModel) {
   notificationModel.schema.post("save", () => { try { ping(); } catch { /* a failed push must never fail a save */ } });
 }
 
-module.exports = { enabled, ping, sendToAll, announceUpdate, attach, _reset: () => { messaging = null; tried = false; if (timer) { clearTimeout(timer); timer = null; } } };
+module.exports = { enabled, ping, sendToAll, announceUpdate, broadcast, attach, _reset: () => { messaging = null; tried = false; if (timer) { clearTimeout(timer); timer = null; } } };

@@ -183,6 +183,10 @@ app.use("/api/push", pushRoutes);
 app.use("/api/demo", require("./routes/demo_routes"));
 // The phone app asks here whether a newer version exists (in-app update). Public; the answer comes from APP_LATEST_* in the environment.
 app.use("/api/app", require("./routes/app_update_routes"));
+// A citizen's own medical information (optional, shared only with their consent on an SOS), the SOS calls staff can see, and recent earthquakes.
+app.use("/api/medical", require("./routes/medical_routes"));
+app.use("/api/sos", require("./routes/sos_routes"));
+app.use("/api/earthquakes", require("./routes/earthquake_routes"));
 pushService.attach(require("./models/notification"));
 liveHub.attach(require("./models/notification"), "notification");
 liveHub.attach(require("./models/mesh_message"), "citizen-report");
@@ -441,6 +445,13 @@ app.use((req, res) => {
     });
 });
 const PORT = resolvePort();
+// Earthquakes from the public USGS feed, looked at every 5 minutes while the server is awake. EARTHQUAKES=off switches it off.
+if (process.env.EARTHQUAKES !== "off") {
+    const quakes = require("./services/earthquake_service");
+    const look = () => quakes.refresh().then((r) => { if (r.added) console.log("[quakes] new:", r.added, "alerted:", r.alerted); }).catch((e) => console.warn("[quakes] feed failed:", e.message));
+    setTimeout(() => { look(); setInterval(look, 5 * 60 * 1000).unref(); }, 60 * 1000).unref();
+}
+
 // A newly configured app version (APP_LATEST_*) is announced to every phone once. Waits for the database, then asks once.
 setTimeout(() => {
     require("./services/push_service").announceUpdate().then((r) => { if (r.sent) console.log("[push] announced app update", r.versionCode); }).catch((e) => console.warn("[push] update announcement failed:", e.message));
