@@ -441,6 +441,11 @@ app.use((req, res) => {
     });
 });
 const PORT = resolvePort();
+// A newly configured app version (APP_LATEST_*) is announced to every phone once. Waits for the database, then asks once.
+setTimeout(() => {
+    require("./services/push_service").announceUpdate().then((r) => { if (r.sent) console.log("[push] announced app update", r.versionCode); }).catch((e) => console.warn("[push] update announcement failed:", e.message));
+}, 45 * 1000).unref();
+
 app.listen(PORT, () => {
     console.log(
         `SENETRY server running on port ${PORT}`
