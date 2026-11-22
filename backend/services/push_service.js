@@ -41,13 +41,13 @@ function ping(options = {}) {
   if (timer.unref) timer.unref();
 }
 
-async function sendToAll(m, { model = PushToken } = {}) {
+async function sendToAll(m, { model = PushToken, data = { type: "notification" } } = {}) {
   const rows = await model.find({}, { token: 1 }).lean();
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
     const result = await m.sendEachForMulticast({
       tokens: chunk.map((r) => r.token),
-      data: { type: "notification" },
+      data,
       android: { priority: "high", ttl: 6 * 3600 * 1000 },
     });
     const dead = [];
@@ -59,8 +59,20 @@ async function sendToAll(m, { model = PushToken } = {}) {
   }
 }
 
+// A new app version was configured (APP_LATEST_*): every phone gets one silent "update" message, once per version. The phone then asks the server
+// what is new and shows its own "A new SENTRY is ready" notification. Citizens and authorities alike; nothing private is sent.
+async function announceUpdate({ messaging = loadMessaging(), model = PushToken, record = require("../models/app_announcement"), offer = require("./app_update_service").latest() } = {}) {
+  if (!messaging || !offer) return { sent: false, reason: !messaging ? "push is not set up" : "no update configured" };
+  const done = await record.findOne({ key: "update" }).lean();
+  if (done && done.versionCode >= offer.versionCode) return { sent: false, reason: "already announced" };
+  // Recorded before sending: if anything fails halfway, phones are never told twice (they also find the update when they open the app).
+  await record.findOneAndUpdate({ key: "update" }, { $set: { versionCode: offer.versionCode, announcedAt: new Date() } }, { upsert: true });
+  await sendToAll(messaging, { model, data: { type: "update", versionCode: String(offer.versionCode) } });
+  return { sent: true, versionCode: offer.versionCode };
+}
+
 function attach(notificationModel) {
   notificationModel.schema.post("save", () => { try { ping(); } catch { /* a failed push must never fail a save */ } });
 }
 
-module.exports = { enabled, ping, sendToAll, attach, _reset: () => { messaging = null; tried = false; if (timer) { clearTimeout(timer); timer = null; } } };
+module.exports = { enabled, ping, sendToAll, announceUpdate, attach, _reset: () => { messaging = null; tried = false; if (timer) { clearTimeout(timer); timer = null; } } };
