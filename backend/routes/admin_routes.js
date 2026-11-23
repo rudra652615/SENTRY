@@ -1,4 +1,7 @@
 const express = require("express");
+const SessionLog = require("../models/session_log");
+const User = require("../models/user");
+const { createActivityHandler } = require("../services/session_log");
 const router = express.Router();
 const {
     getAdminStats,
@@ -36,6 +39,8 @@ router.get(
     getAllAuthorities
 );
 router.get("/accounts", protect, authorizeAdmin, getManagedAccounts);
+// Who is using the app now and who signed in and out when (the administrator's Live screen).
+router.get("/activity", protect, authorizeAdmin, createActivityHandler(SessionLog, User));
 router.get("/accounts/me/session-limit", protect, authorizeAdmin, getOwnSessionLimit);
 router.patch("/accounts/:id/session-limit", protect, authorizeAdmin, setSessionLimit);
 router.post("/accounts/:id/force-logout", protect, authorizeAdmin, forceLogoutAccount);

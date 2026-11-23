@@ -5,6 +5,8 @@ const User = require("../models/user");
 const Passkey = require("../models/passkey");
 const PasskeyChallenge = require("../models/passkey_challenge");
 const { claimLoginSession, accountStatusMessage } = require("./auth_controller");
+const SessionLog = require("../models/session_log");
+const { startSession, viaFrom } = require("../services/session_log");
 const passkeys = require("../services/passkey_service");
 
 const fail = (res, status, message, extra = {}) => res.status(status).json({ success: false, message, ...extra });
@@ -124,6 +126,7 @@ const finishLogin = async (req, res) => {
         passkey.counter = checked.newCounter;
         passkey.lastUsedAt = new Date();
         await passkey.save();
+        await startSession(SessionLog, claimedUser, sessionId, viaFrom(req));
         const token = jwt.sign({ userId: claimedUser._id, role: claimedUser.role, authorityStatus: claimedUser.authorityStatus, sessionId }, process.env.JWT_SECRET, { expiresIn: "7d" });
         return res.status(200).json({
             success: true,

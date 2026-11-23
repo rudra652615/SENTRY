@@ -3,6 +3,8 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/user");
 const OtpChallenge = require("../models/otp_challenge");
+const SessionLog = require("../models/session_log");
+const { startSession, endSession, viaFrom } = require("../services/session_log");
 const { hasEmailConfig, sendOtpEmail } = require("../services/email_service");
 const { verifyIdentityToken } = require("../services/oauth_identity");
 const accountStatusMessage = (status) => ({
@@ -289,6 +291,7 @@ const login = async (req, res) => {
                 message: `This account has reached its ${latestUser?.maxConcurrentSessions || (latestUser?.role === "admin" ? 3 : 1)}-device sign-in limit. Sign out on another device or ask an administrator to raise the limit.`
             });
         }
+        await startSession(SessionLog, claimedUser, sessionId, viaFrom(req)); // for the administrator's Live screen; never stops a sign-in
         const token = jwt.sign(
             {
                 userId: claimedUser._id,
@@ -401,6 +404,7 @@ const oauthLogin = async (req, res) => {
                 message: `This account has reached its ${user.maxConcurrentSessions || (user.role === "admin" ? 3 : 1)}-device sign-in limit. Sign out on another device or ask an administrator to raise the limit.`
             });
         }
+        await startSession(SessionLog, claimedUser, sessionId, viaFrom(req));
         const token = jwt.sign({
             userId: claimedUser._id,
             role: claimedUser.role,
@@ -473,6 +477,7 @@ const logout = async (req, res) => {
                 message: "This login session is no longer active. Please sign in again."
             });
         }
+        await endSession(SessionLog, { sessionId: req.user.sessionId, by: "logout" });
         return res.status(200).json({
             success: true,
             message: "Logged out successfully."
@@ -598,6 +603,7 @@ const verifyOtp = async (req, res) => {
             user.activeSessionId = null;
             user.activeSessionIds = [];
             await user.save();
+            await endSession(SessionLog, { userId: user._id, by: "logout" }); // a password change signs out every device
             return res.status(200).json({ success: true, message: "Password updated. All devices have been signed out; sign in again." });
         }
         if (purpose === "unlock") {
@@ -611,6 +617,7 @@ const verifyOtp = async (req, res) => {
         }
         if (purpose === "revoke_sessions") {
             await User.updateOne({ _id: user._id, accountStatus: "active" }, { $set: { activeSessionId: null, activeSessionIds: [], lastSeenAt: null } });
+            await endSession(SessionLog, { userId: user._id, by: "logout" }); // the person signed out every device
             return res.status(200).json({ success: true, message: "All devices have been signed out." });
         }
 
@@ -620,6 +627,7 @@ const verifyOtp = async (req, res) => {
         const sessionId = crypto.randomBytes(32).toString("hex");
         const claimedUser = await claimLoginSession(user._id, sessionId, true);
         if (!claimedUser) return res.status(409).json({ success: false, code: "ACCOUNT_ALREADY_LOGGED_IN", message: "This account has reached its device sign-in limit." });
+        await startSession(SessionLog, claimedUser, sessionId, viaFrom(req));
         const token = jwt.sign({ userId: claimedUser._id, role: claimedUser.role, authorityStatus: claimedUser.authorityStatus, sessionId }, process.env.JWT_SECRET, { expiresIn: "7d" });
         return res.status(200).json({
             success: true,

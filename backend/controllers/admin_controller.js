@@ -1,5 +1,7 @@
 const User = require("../models/user");
 const Incident = require("../models/incident");
+const SessionLog = require("../models/session_log");
+const { endSession } = require("../services/session_log");
 const getAdminStats = async (req, res) => {
     try {
         const [
@@ -276,6 +278,7 @@ const forceLogoutAccount = async (req, res) => {
         if (!user) {
             return res.status(404).json({ success: false, message: "Account not found." });
         }
+        await endSession(SessionLog, { userId: user._id, by: "admin" });
         return res.status(200).json({ success: true, message: "Account was logged out." });
     } catch (error) {
         console.error("Admin force logout error:", error.message);
@@ -313,6 +316,7 @@ const setManagedAccountStatus = async (req, res) => {
         if (!user) {
             return res.status(404).json({ success: false, message: "Account not found." });
         }
+        await endSession(SessionLog, { userId: user._id, by: "admin" }); // locking, banning or restoring ends every session
         return res.status(200).json({
             success: true,
             message: status === "active"
@@ -366,6 +370,7 @@ const permanentlyDeleteAccount = async (req, res) => {
             role: { $in: CONTROLLED_ROLES }
         });
         if (!deleted) return res.status(404).json({ success: false, message: "Account not found or cannot delete your own administrator account." });
+        await endSession(SessionLog, { userId: deleted._id, by: "admin" });
         return res.status(200).json({
             success: true,
             message: "Account permanently deleted. Operational records linked to this account were preserved."
