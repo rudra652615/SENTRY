@@ -16,7 +16,11 @@ function setup() {
 }
 const withRoles = async (fn) => {
   const previous = User.find;
-  User.find = (q) => ({ lean: async () => ["u-cit", "u-dev"].filter((id) => q._id.$in.map(String).includes(id)).map((id) => ({ _id: id })) });
+  User.find = (q) => {
+    // authority and admin are excluded; a user with no role saved (an older account) counts as a citizen
+    assert.deepEqual(q.role, { $nin: ["authority", "admin"] });
+    return { lean: async () => ["u-cit", "u-dev"].filter((id) => q._id.$in.map(String).includes(id)).map((id) => ({ _id: id })) };
+  };
   try { await fn(); } finally { User.find = previous; }
 };
 

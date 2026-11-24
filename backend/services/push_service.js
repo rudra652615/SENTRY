@@ -60,8 +60,8 @@ async function sendToAll(m, { model = PushToken, data = { type: "notification" }
   }
   const found = rows.length; // counts for the Test Console's report, nothing private
   if (citizensOnly && rows.length) {
-    // The Test Console's scenes are for citizen phones only (authority and admin phones never play one).
-    const citizens = new Set((await require("../models/user").find({ _id: { $in: rows.map((r) => r.userId) }, role: "citizen" }, { _id: 1 }).lean()).map((u) => String(u._id)));
+    // The Test Console's scenes are for citizen phones only (authority and admin phones never play one). An older account may have no role saved: it is a citizen, as the app treats it.
+    const citizens = new Set((await require("../models/user").find({ _id: { $in: rows.map((r) => r.userId) }, role: { $nin: ["authority", "admin"] } }, { _id: 1 }).lean()).map((u) => String(u._id)));
     rows = rows.filter((r) => citizens.has(String(r.userId)));
   }
   let sent = 0;
