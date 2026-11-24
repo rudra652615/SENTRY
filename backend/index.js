@@ -455,9 +455,12 @@ if (process.env.EARTHQUAKES !== "off") {
 
 // A newly configured app version (APP_LATEST_*) is announced to every phone once. Waits for the database, then asks once.
 setTimeout(() => {
-    require("./services/push_service").announceUpdate().then((r) => { if (r.sent) console.log("[push] announced app update", r.versionCode); }).catch((e) => console.warn("[push] update announcement failed:", e.message));
+    // Look at the newest GitHub Release's latest.json first, then announce what is newest (from there or from Render's settings).
+    require("./services/app_update_service").refresh().catch(() => {}).then(() => require("./services/push_service").announceUpdate()).then((r) => { if (r.sent) console.log("[push] announced app update", r.versionCode); }).catch((e) => console.warn("[push] update announcement failed:", e.message));
 }, 45 * 1000).unref();
 // Every minute: when a developer's private test period has run out, the new-version announcement that was kept back goes to everyone.
+// Every 5 minutes: look for a newer release file on GitHub and announce it once (no Render edit needed for a new version).
+setInterval(() => { require("./services/app_update_service").refresh().then((r) => (r.ok ? require("./services/push_service").announceUpdate() : null)).catch(() => {}); }, 5 * 60 * 1000).unref();
 setInterval(() => { require("./services/delivery_mode").default.watch(() => require("./services/push_service").announceUpdate()).catch(() => {}); }, 60 * 1000).unref();
 
 app.listen(PORT, () => {

@@ -99,7 +99,7 @@ async function sendDemo(scene, version, { developersOnly = false, messaging = lo
 
 // A new app version was configured (APP_LATEST_*): every phone gets one silent "update" message, once per version. The phone then asks the server
 // what is new and shows its own "A new SENTRY is ready" notification. Citizens and authorities alike; nothing private is sent.
-async function announceUpdate({ messaging = loadMessaging(), model = PushToken, record = require("../models/app_announcement"), offer = require("./app_update_service").latest(), privateNow = () => require("./delivery_mode").default.privateNow() } = {}) {
+async function announceUpdate({ messaging = loadMessaging(), model = PushToken, record = require("../models/app_announcement"), offer = require("./app_update_service").current(), privateNow = () => require("./delivery_mode").default.privateNow() } = {}) {
   if (!messaging || !offer) return { sent: false, reason: !messaging ? "push is not set up" : "no update configured" };
   const done = await record.findOne({ key: "update" }).lean();
   if (done && done.versionCode >= offer.versionCode) return { sent: false, reason: "already announced" };
