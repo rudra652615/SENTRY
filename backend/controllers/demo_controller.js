@@ -27,9 +27,10 @@ async function postTrigger(req, res, next) {
         const live = hub.publishDemo(data, { developersOnly: priv });
         // Also by push (60 seconds only): a phone that gave up its own live line because push works would never hear a scene otherwise.
         let pushed = 0;
-        try { pushed = (await require("../services/push_service").sendDemo(data.scene, data.version, { developersOnly: priv })).sent || 0; } catch (e) { console.warn("[demo] push failed:", e.message); }
+        let pushInfo = {};
+        try { const r = await require("../services/push_service").sendDemo(data.scene, data.version, { developersOnly: priv }); pushed = r.sent || 0; pushInfo = { phones: r.phones, failed: r.failed, errors: r.errors, reason: r.reason }; } catch (e) { console.warn("[demo] push failed:", e.message); pushInfo = { error: String(e.code || e.name || "error") }; }
         // The same phone can hear it both ways, so the count is the larger of the two, never the sum.
-        res.json({ success: true, data, reached: Math.max(live, pushed), live, pushed, audience: priv ? "developer" : "everyone" });
+        res.json({ success: true, data, reached: Math.max(live, pushed), live, pushed, push: pushInfo, audience: priv ? "developer" : "everyone" });
     } catch (error) { next(error); }
 }
 

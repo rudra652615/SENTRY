@@ -65,6 +65,7 @@ async function sendToAll(m, { model = PushToken, data = { type: "notification" }
   }
   let sent = 0;
   let failed = 0;
+  const lastErrors = [];
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
     const result = await m.sendEachForMulticast({
@@ -77,12 +78,14 @@ async function sendToAll(m, { model = PushToken, data = { type: "notification" }
     failed += result.responses.filter((r) => !r.success).length;
     result.responses.forEach((r, k) => {
       const code = r.error && r.error.code;
+      if (code) lastErrors.push(String(code)); // only Firebase's error code, nothing private
       if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") dead.push(chunk[k].token);
     });
     if (dead.length) await model.deleteMany({ token: { $in: dead } });
   }
   lastResult = { at: new Date().toISOString(), phones: rows.length, sent, failed, audience: audience === "developer" ? "developer" : "everyone", type: data && data.type };
-  return { sent, failed };
+  const errors = [...new Set(lastErrors)].slice(0, 3);
+  return { sent, failed, phones: rows.length, errors };
 }
 
 // A Test Console scene as a data-only push (the scene's name and a version, nothing private). It lives 60 seconds only, so a test plays at the
