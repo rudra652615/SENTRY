@@ -50,13 +50,18 @@ function ping(options = {}) {
 let lastResult = null;
 const status = () => ({ configured: enabled(), last: lastResult });
 
-async function sendToAll(m, { model = PushToken, data = { type: "notification" }, audience, developerIds } = {}) {
+async function sendToAll(m, { model = PushToken, data = { type: "notification" }, audience, developerIds, citizensOnly = false, ttlMs = 6 * 3600 * 1000 } = {}) {
   let rows;
   if (audience === "developer") {
     const ids = await (developerIds || (() => require("./delivery_mode").default.developerIds()))();
     rows = ids.length ? await model.find({ userId: { $in: ids } }, { token: 1 }).lean() : [];
   } else {
     rows = await model.find({}, { token: 1 }).lean();
+  }
+  if (citizensOnly && rows.length) {
+    // The Test Console's scenes are for citizen phones only (authority and admin phones never play one).
+    const citizens = new Set((await require("../models/user").find({ _id: { $in: rows.map((r) => r.userId) }, role: "citizen" }, { _id: 1 }).lean()).map((u) => String(u._id)));
+    rows = rows.filter((r) => citizens.has(String(r.userId)));
   }
   let sent = 0;
   let failed = 0;
@@ -65,7 +70,7 @@ async function sendToAll(m, { model = PushToken, data = { type: "notification" }
     const result = await m.sendEachForMulticast({
       tokens: chunk.map((r) => r.token),
       data,
-      android: { priority: "high", ttl: 6 * 3600 * 1000 },
+      android: { priority: "high", ttl: ttlMs },
     });
     const dead = [];
     sent += result.responses.filter((r) => r.success).length;
@@ -77,6 +82,15 @@ async function sendToAll(m, { model = PushToken, data = { type: "notification" }
     if (dead.length) await model.deleteMany({ token: { $in: dead } });
   }
   lastResult = { at: new Date().toISOString(), phones: rows.length, sent, failed, audience: audience === "developer" ? "developer" : "everyone", type: data && data.type };
+  return { sent, failed };
+}
+
+// A Test Console scene as a data-only push (the scene's name and a version, nothing private). It lives 60 seconds only, so a test plays at the
+// moment of the press and never later. Phones that keep the app's own live line open hear the same scene there; a version plays once per phone.
+// A phone that gave up that line because push works (the normal case) hears it here. Citizen phones only; in private test mode only the developer's.
+async function sendDemo(scene, version, { developersOnly = false, messaging = loadMessaging(), model, developerIds } = {}) {
+  if (!messaging) return { sent: 0, failed: 0, reason: "push is not set up" };
+  return sendToAll(messaging, { model, developerIds, data: { type: "demo", scene: String(scene), version: String(version) }, audience: developersOnly ? "developer" : undefined, citizensOnly: true, ttlMs: 60 * 1000 });
 }
 
 // A new app version was configured (APP_LATEST_*): every phone gets one silent "update" message, once per version. The phone then asks the server
@@ -107,4 +121,4 @@ function attach(notificationModel) {
   notificationModel.schema.post("save", (doc) => { try { ping(doc && doc.developerOnly ? { audience: "developer" } : {}); } catch { /* a failed push must never fail a save */ } });
 }
 
-module.exports = { enabled, status, ping, sendToAll, announceUpdate, broadcast, attach, _reset: () => { messaging = null; tried = false; lastResult = null; pendingPublic = false; if (timer) { clearTimeout(timer); timer = null; } } };
+module.exports = { enabled, status, ping, sendToAll, sendDemo, announceUpdate, broadcast, attach, _reset: () => { messaging = null; tried = false; lastResult = null; pendingPublic = false; if (timer) { clearTimeout(timer); timer = null; } } };
