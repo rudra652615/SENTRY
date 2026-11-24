@@ -9,7 +9,8 @@ function setup() {
   const messaging = { sendEachForMulticast: async (m) => { sent.push(m); return { responses: m.tokens.map(() => ({ success: true })) }; } };
   const phones = [{ userId: "u-cit", token: "t-cit" }, { userId: "u-auth", token: "t-auth" }, { userId: "u-dev", token: "t-dev" }];
   const model = {
-    find: (q) => ({ lean: async () => (q && q.userId && q.userId.$in ? phones.filter((p) => q.userId.$in.includes(p.userId)) : phones) }),
+    // like the real database it returns only the fields that were asked for (the bug this guards against: asking for the token alone)
+    find: (q, fields) => ({ lean: async () => (q && q.userId && q.userId.$in ? phones.filter((p) => q.userId.$in.includes(p.userId)) : phones).map((p) => Object.fromEntries(Object.entries(p).filter(([k]) => fields && fields[k]))) }),
     deleteMany: async () => {},
   };
   return { sent, messaging, model };

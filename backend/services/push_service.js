@@ -54,9 +54,9 @@ async function sendToAll(m, { model = PushToken, data = { type: "notification" }
   let rows;
   if (audience === "developer") {
     const ids = await (developerIds || (() => require("./delivery_mode").default.developerIds()))();
-    rows = ids.length ? await model.find({ userId: { $in: ids } }, { token: 1 }).lean() : [];
+    rows = ids.length ? await model.find({ userId: { $in: ids } }, { token: 1, userId: 1 }).lean() : [];
   } else {
-    rows = await model.find({}, { token: 1 }).lean();
+    rows = await model.find({}, { token: 1, userId: 1 }).lean();
   }
   const found = rows.length; // counts for the Test Console's report, nothing private
   if (citizensOnly && rows.length) {
