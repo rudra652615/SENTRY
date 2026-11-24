@@ -179,6 +179,7 @@ app.use("/api/relocation-priority", relocationPriorityRoutes);
 app.use("/api/mesh", meshRoutes);
 app.use("/api/live", liveRoutes);
 app.use("/api/push", pushRoutes);
+app.use("/api/developer", require("./routes/developer_routes"));
 // The SENETRY Test Console sets a demo scene here and citizen phones play it. Off unless DEMO_TEST_KEY is set on the server.
 app.use("/api/demo", require("./routes/demo_routes"));
 // The phone app asks here whether a newer version exists (in-app update). Public; the answer comes from APP_LATEST_* in the environment.
@@ -456,6 +457,8 @@ if (process.env.EARTHQUAKES !== "off") {
 setTimeout(() => {
     require("./services/push_service").announceUpdate().then((r) => { if (r.sent) console.log("[push] announced app update", r.versionCode); }).catch((e) => console.warn("[push] update announcement failed:", e.message));
 }, 45 * 1000).unref();
+// Every minute: when a developer's private test period has run out, the new-version announcement that was kept back goes to everyone.
+setInterval(() => { require("./services/delivery_mode").default.watch(() => require("./services/push_service").announceUpdate()).catch(() => {}); }, 60 * 1000).unref();
 
 app.listen(PORT, () => {
     console.log(

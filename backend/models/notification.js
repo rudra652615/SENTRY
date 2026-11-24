@@ -46,6 +46,11 @@ const notificationSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Set when a developer sent it in private test mode: only developer accounts see it (see services/delivery_mode.js).
+    developerOnly: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

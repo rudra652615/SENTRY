@@ -1,8 +1,11 @@
 const { validateBroadcast } = require("../services/broadcastInput");
 const Notification = require("../models/notification");
+const delivery = require("../services/delivery_mode");
 const getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find()
+    // What a developer kept private while testing is shown to developers only.
+    const asker = await delivery.default.isDeveloper(req.user && req.user.userId);
+    const notifications = await Notification.find(delivery.visibleFilter(asker))
       .sort({ createdAt: -1 })
       .limit(100);
     res.status(200).json({
@@ -71,7 +74,9 @@ const sendBroadcast = async (req, res) => {
       });
     }
     const { channel, type, title, message, targetAudience } = checked.value;
+    const developerOnly = await delivery.default.shouldKeepPrivate(req.user && req.user.userId);
     const notification = await Notification.create({
+      developerOnly,
       channel,
       type,
       title,

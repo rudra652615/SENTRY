@@ -73,7 +73,8 @@ test("a demo line goes to every connected citizen phone and to no authority or a
 test("there is no way to read an earlier scene later: the server offers no read route and keeps no end time", () => {
     const router = require("../routes/demo_routes");
     const paths = router.stack.map((layer) => `${Object.keys(layer.route.methods).join(",")} ${layer.route.path}`);
-    assert.deepEqual(paths, ["post /trigger"]);
+    // One route sends a scene and none reads one back. The two /delivery routes are the developer's switch (who receives tests), which holds no scene data.
+    assert.deepEqual(paths, ["post /trigger", "get /delivery", "put /delivery"]);
     assert.equal(DemoSignal.schema.path("expiresAt"), undefined);
 });
 

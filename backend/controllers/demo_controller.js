@@ -20,8 +20,12 @@ async function postTrigger(req, res, next) {
         const scene = typeof req.body?.scene === "string" ? req.body.scene : "";
         const data = await demo.trigger(scene);
         if (!data) return res.status(400).json({ success: false, message: "That scene does not exist.", scenes: demo.SCENES });
-        const reached = hub.publishDemo(data);
-        res.json({ success: true, data, reached });
+        // In a developer's private test mode the demo signal reaches only the developer's phones.
+        const delivery = require("../services/delivery_mode").default;
+        const priv = await delivery.privateNow();
+        if (priv) await delivery.developerIds();
+        const reached = hub.publishDemo(data, { developersOnly: priv });
+        res.json({ success: true, data, reached, audience: priv ? "developer" : "everyone" });
     } catch (error) { next(error); }
 }
 

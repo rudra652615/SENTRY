@@ -28,21 +28,38 @@ function loadMessaging() {
 
 const enabled = () => Boolean(loadMessaging());
 
-// One push covers every notification saved in the same two seconds.
+// One push covers every notification saved in the same two seconds. If any of them is for everyone, the push goes to everyone; only when every
+// one of them was kept private by a developer (options.audience === "developer") does it go to the developer's phones alone.
 let timer = null;
+let pendingPublic = false;
 function ping(options = {}) {
   const send = options.messaging || loadMessaging();
   if (!send) return;
+  if (options.audience !== "developer") pendingPublic = true;
   if (timer) return;
   timer = setTimeout(async () => {
     timer = null;
-    try { await sendToAll(send, options); } catch (error) { console.warn("[push] send failed:", error.message); }
+    const audience = pendingPublic ? undefined : "developer";
+    pendingPublic = false;
+    try { await sendToAll(send, { ...options, audience }); } catch (error) { console.warn("[push] send failed:", error.message); }
   }, options.delayMs ?? 2000);
   if (timer.unref) timer.unref();
 }
 
-async function sendToAll(m, { model = PushToken, data = { type: "notification" } } = {}) {
-  const rows = await model.find({}, { token: 1 }).lean();
+// What the last send did, for the administrator's health screen.
+let lastResult = null;
+const status = () => ({ configured: enabled(), last: lastResult });
+
+async function sendToAll(m, { model = PushToken, data = { type: "notification" }, audience, developerIds } = {}) {
+  let rows;
+  if (audience === "developer") {
+    const ids = await (developerIds || (() => require("./delivery_mode").default.developerIds()))();
+    rows = ids.length ? await model.find({ userId: { $in: ids } }, { token: 1 }).lean() : [];
+  } else {
+    rows = await model.find({}, { token: 1 }).lean();
+  }
+  let sent = 0;
+  let failed = 0;
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
     const result = await m.sendEachForMulticast({
@@ -51,20 +68,28 @@ async function sendToAll(m, { model = PushToken, data = { type: "notification" }
       android: { priority: "high", ttl: 6 * 3600 * 1000 },
     });
     const dead = [];
+    sent += result.responses.filter((r) => r.success).length;
+    failed += result.responses.filter((r) => !r.success).length;
     result.responses.forEach((r, k) => {
       const code = r.error && r.error.code;
       if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") dead.push(chunk[k].token);
     });
     if (dead.length) await model.deleteMany({ token: { $in: dead } });
   }
+  lastResult = { at: new Date().toISOString(), phones: rows.length, sent, failed, audience: audience === "developer" ? "developer" : "everyone", type: data && data.type };
 }
 
 // A new app version was configured (APP_LATEST_*): every phone gets one silent "update" message, once per version. The phone then asks the server
 // what is new and shows its own "A new SENTRY is ready" notification. Citizens and authorities alike; nothing private is sent.
-async function announceUpdate({ messaging = loadMessaging(), model = PushToken, record = require("../models/app_announcement"), offer = require("./app_update_service").latest() } = {}) {
+async function announceUpdate({ messaging = loadMessaging(), model = PushToken, record = require("../models/app_announcement"), offer = require("./app_update_service").latest(), privateNow = () => require("./delivery_mode").default.privateNow() } = {}) {
   if (!messaging || !offer) return { sent: false, reason: !messaging ? "push is not set up" : "no update configured" };
   const done = await record.findOne({ key: "update" }).lean();
   if (done && done.versionCode >= offer.versionCode) return { sent: false, reason: "already announced" };
+  // A developer's private test mode keeps the announcement to the developer's phones, and does NOT record it: it goes to everyone when the mode ends.
+  if (await privateNow()) {
+    await sendToAll(messaging, { model, data: { type: "update", versionCode: String(offer.versionCode) }, audience: "developer" });
+    return { sent: true, audience: "developer", versionCode: offer.versionCode };
+  }
   // Recorded before sending: if anything fails halfway, phones are never told twice (they also find the update when they open the app).
   await record.findOneAndUpdate({ key: "update" }, { $set: { versionCode: offer.versionCode, announcedAt: new Date() } }, { upsert: true });
   await sendToAll(messaging, { model, data: { type: "update", versionCode: String(offer.versionCode) } });
@@ -79,7 +104,7 @@ async function broadcast(data, options = {}) {
 }
 
 function attach(notificationModel) {
-  notificationModel.schema.post("save", () => { try { ping(); } catch { /* a failed push must never fail a save */ } });
+  notificationModel.schema.post("save", (doc) => { try { ping(doc && doc.developerOnly ? { audience: "developer" } : {}); } catch { /* a failed push must never fail a save */ } });
 }
 
-module.exports = { enabled, ping, sendToAll, announceUpdate, broadcast, attach, _reset: () => { messaging = null; tried = false; if (timer) { clearTimeout(timer); timer = null; } } };
+module.exports = { enabled, status, ping, sendToAll, announceUpdate, broadcast, attach, _reset: () => { messaging = null; tried = false; lastResult = null; pendingPublic = false; if (timer) { clearTimeout(timer); timer = null; } } };

@@ -84,7 +84,9 @@ async function createTargetedAlert(req, res, next) {
             }
         }
         const fingerprint = `targeted:${hazardType}:${point.coordinates.join(":")}:${Date.now()}`;
+        const developerOnly = await require("../services/delivery_mode").default.shouldKeepPrivate(req.user && req.user.userId);
         const alert = await Alert.create({
+            developerOnly,
             fingerprint,
             disasterType: hazardType,
             hazardType,

@@ -133,6 +133,8 @@ const alertSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+// Set when a developer made it in private test mode: only developer accounts see it (see services/delivery_mode.js).
+alertSchema.add({ developerOnly: { type: Boolean, default: false } });
 alertSchema.index({ targetLocation: "2dsphere" });
 alertSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, partialFilterExpression: { expiresAt: { $type: "date" } } });
 module.exports = mongoose.model("Alert", alertSchema);

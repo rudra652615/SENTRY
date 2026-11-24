@@ -1,9 +1,11 @@
 const Alert = require("../models/alert");
 const Notification = require("../models/notification");
+const delivery = require("../services/delivery_mode");
 const mongoose = require("mongoose");
 const getAlerts = async (req, res) => {
   try {
-    const alerts = await Alert.find({})
+    const asker = await delivery.default.isDeveloper(req.user && req.user.userId);
+    const alerts = await Alert.find(delivery.visibleFilter(asker))
       .populate("affectedHabitations", "name location population district state")
       .sort({ createdAt: -1 })
       .lean();
@@ -24,7 +26,8 @@ const getAlertById = async (req, res) => {
     const alert = await Alert.findById(
       req.params.id
     );
-    if (!alert) {
+    // An alert a developer kept private is "not found" for everyone else.
+    if (!alert || (alert.developerOnly && !(await delivery.default.isDeveloper(req.user && req.user.userId)))) {
       return res.status(404).json({
         success: false,
         message: "Alert not found.",

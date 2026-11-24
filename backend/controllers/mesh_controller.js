@@ -17,7 +17,7 @@ const key = () => {
 const getBundle = async (req, res) => {
   try {
     const since = new Date(Date.now() - 12 * 3600 * 1000);
-    const list = await Notification.find({ createdAt: { $gte: since } }).sort({ createdAt: -1 }).limit(40).lean();
+    const list = await Notification.find({ createdAt: { $gte: since }, developerOnly: { $ne: true } }) // never what a developer kept private.sort({ createdAt: -1 }).limit(40).lean();
     const forCitizens = list.filter((n) => {
       const audience = String(n.targetAudience || "").toLowerCase();
       return !audience || audience.includes("citizen") || audience.includes("public") || audience.includes("general") || audience.includes("all");
