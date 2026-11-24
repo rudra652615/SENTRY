@@ -58,6 +58,7 @@ async function sendToAll(m, { model = PushToken, data = { type: "notification" }
   } else {
     rows = await model.find({}, { token: 1 }).lean();
   }
+  const found = rows.length; // counts for the Test Console's report, nothing private
   if (citizensOnly && rows.length) {
     // The Test Console's scenes are for citizen phones only (authority and admin phones never play one).
     const citizens = new Set((await require("../models/user").find({ _id: { $in: rows.map((r) => r.userId) }, role: "citizen" }, { _id: 1 }).lean()).map((u) => String(u._id)));
@@ -85,7 +86,7 @@ async function sendToAll(m, { model = PushToken, data = { type: "notification" }
   }
   lastResult = { at: new Date().toISOString(), phones: rows.length, sent, failed, audience: audience === "developer" ? "developer" : "everyone", type: data && data.type };
   const errors = [...new Set(lastErrors)].slice(0, 3);
-  return { sent, failed, phones: rows.length, errors };
+  return { sent, failed, phones: rows.length, found, errors };
 }
 
 // A Test Console scene as a data-only push (the scene's name and a version, nothing private). It lives 60 seconds only, so a test plays at the
